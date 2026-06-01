@@ -1,16 +1,15 @@
-
 /* =========================================================================
    NAQC Parts/Purchases Request - sequential e-signature workflow
    No Microsoft / SMTP required. Emails go through Resend (HTTPS).
    Flow: Requestor -> Manager -> Coordinator -> (VP only if Fixed Asset or total >= $1,000)
    ========================================================================= */
- 
+
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { PDFDocument, StandardFonts, rgb } = require('pdf-lib');
- 
+
 // Form page is embedded here so there is no separate /public folder to go missing.
 const FORM_HTML = `<!doctype html>
 <html lang="en">
@@ -55,14 +54,14 @@ const FORM_HTML = `<!doctype html>
 <div class="wrap">
   <h1>NAQC Parts/Purchases Request</h1>
   <div class="hint">Fill out the form, sign at the bottom, and submit. It will be emailed to the Manager, then the Coordinator, in order.</div>
- 
+
   <div class="card">
     <h2>Category</h2>
     <div class="chips" id="cats"></div>
     <label>Purchasing Assigned Order Number (HMA only)</label>
     <input id="hmaOrderNumber" placeholder="Leave blank if N/A">
   </div>
- 
+
   <div class="card">
     <h2>Request Info</h2>
     <div class="grid2">
@@ -74,7 +73,7 @@ const FORM_HTML = `<!doctype html>
     <label>Order From (Vendor, Contact Information)</label>
     <input id="vendor" placeholder="e.g. Home Depot">
   </div>
- 
+
   <div class="card">
     <h2>For Vehicle Repair Only</h2>
     <div class="grid3">
@@ -87,7 +86,7 @@ const FORM_HTML = `<!doctype html>
     <label>Reason for Purchase (details)</label>
     <textarea id="reason" placeholder="For vehicle parts: include detailed repair description, photos, and VIN(s)."></textarea>
   </div>
- 
+
   <div class="card">
     <h2>Items</h2>
     <table>
@@ -104,7 +103,7 @@ const FORM_HTML = `<!doctype html>
       <div class="total"><span>Total</span><span id="total">$0.00</span></div>
     </div>
   </div>
- 
+
   <div class="card">
     <h2>Approval Routing</h2>
     <div class="grid2">
@@ -121,36 +120,36 @@ const FORM_HTML = `<!doctype html>
       </div>
     </div>
   </div>
- 
+
   <div class="card">
     <h2>Requestor Signature</h2>
     <canvas id="pad"></canvas>
     <div class="row"><button class="ghost" id="clear">Clear</button></div>
   </div>
- 
+
   <div class="row"><button class="primary" id="submit">Submit &amp; Send for Signatures</button></div>
   <div id="msg"></div>
 </div>
- 
+
 <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
 <script>
 const CATS=['Parts (New)','Parts (Replace)','Fixed Asset','General','Shop Supplies'];
 let category='General', VP_THRESHOLD=1000;
 const $=id=>document.getElementById(id);
- 
+
 // category chips
 const catWrap=$('cats');
 CATS.forEach(c=>{const d=document.createElement('div');d.className='chip'+(c===category?' sel':'');d.textContent=c;
   d.onclick=()=>{category=c;[...catWrap.children].forEach(x=>x.classList.toggle('sel',x.textContent===c));checkVP();};
   catWrap.appendChild(d);});
- 
+
 // coordinator dropdown
 fetch('/api/config').then(r=>r.json()).then(cfg=>{
   VP_THRESHOLD=cfg.vpThreshold||1000;
   const sel=$('coordinatorName');
   (cfg.coordinators||[]).forEach(n=>{const o=document.createElement('option');o.value=n;o.textContent=n;sel.appendChild(o);});
 });
- 
+
 // items table
 const itemsBody=$('items');
 for(let i=0;i<10;i++){
@@ -187,14 +186,14 @@ itemsBody.addEventListener('input',recompute);
 $('taxRate').addEventListener('input',recompute);
 $('requestDate').value=new Date().toISOString().slice(0,10);
 recompute();
- 
+
 // signature pad
 const canvas=$('pad');
 function fit(){const r=window.devicePixelRatio||1;canvas.width=canvas.offsetWidth*r;canvas.height=canvas.offsetHeight*r;canvas.getContext('2d').scale(r,r);}
 fit();const pad=new SignaturePad(canvas,{penColor:'#0b2161'});
 window.addEventListener('resize',()=>{const d=pad.toData();fit();pad.fromData(d);});
 $('clear').onclick=()=>pad.clear();
- 
+
 $('submit').onclick=async()=>{
   const msg=$('msg');msg.style.color='#b91c1c';
   if(!$('requesterName').value){msg.textContent='Requester name is required.';return;}
@@ -227,35 +226,35 @@ $('submit').onclick=async()=>{
 </body>
 </html>
 `;
- 
+
 /* ---------------------------------------------------------------------------
    1) CONFIG  --  edit these (or set them as environment variables on your host)
    --------------------------------------------------------------------------- */
 const CONFIG = {
   // Get a free key at https://resend.com  ->  API Keys
   RESEND_API_KEY: process.env.RESEND_API_KEY || 'PASTE_YOUR_RESEND_KEY_HERE',
- 
+
   // The "from" address. Until you verify your own domain in Resend, use:
   //   onboarding@resend.dev   (works immediately, fine for testing)
   FROM_EMAIL: process.env.FROM_EMAIL || 'NAQC Purchasing <onboarding@resend.dev>',
- 
+
   // The public URL where this app runs. Used to build the signing links in emails.
   // Local test: http://localhost:3000   |   Deployed: https://your-app.onrender.com
   BASE_URL: process.env.BASE_URL || 'http://localhost:3000',
- 
+
   PORT: process.env.PORT || 3000,
- 
+
   // Coordinator dropdown -> email it routes to. Fill in the real emails.
   COORDINATORS: {
     'Steve Kennedy': process.env.COORD_STEVE || 'steve@example.com',
     'Hung Chan': process.env.COORD_HUNG || 'hung@example.com',
     'Charles Caragan': process.env.COORD_CHARLES || 'charles@example.com'
   },
- 
+
   // Threshold (in dollars) that requires VP confirmation. Fixed Asset always requires VP.
   VP_THRESHOLD: 1000
 };
- 
+
 /* ---------------------------------------------------------------------------
    2) TINY JSON DATABASE  (one file; fine for low volume)
    --------------------------------------------------------------------------- */
@@ -263,7 +262,7 @@ const DATA_DIR = path.join(__dirname, 'data');
 const DB_FILE = path.join(DATA_DIR, 'db.json');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 if (!fs.existsSync(DB_FILE)) fs.writeFileSync(DB_FILE, JSON.stringify({ orders: {} }, null, 2));
- 
+
 function loadDB() {
   return JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
 }
@@ -273,7 +272,7 @@ function saveDB(db) {
 function token() {
   return crypto.randomBytes(18).toString('hex');
 }
- 
+
 /* ---------------------------------------------------------------------------
    3) MONEY HELPERS
    --------------------------------------------------------------------------- */
@@ -288,7 +287,7 @@ function computeTotals(items, taxRate) {
   return { subtotal, tax, total: subtotal + tax };
 }
 const money = n => '$' + (Number(n) || 0).toFixed(2);
- 
+
 /* ---------------------------------------------------------------------------
    4) BUILD THE WORKFLOW STEPS for a new order
    --------------------------------------------------------------------------- */
@@ -305,10 +304,14 @@ function buildFlow(po) {
   if (needsVP) {
     steps.push({ role: 'vp', label: 'Vice President', name: po.vpName || '', email: po.vpEmail,
       token: token(), signed: false, signatureDataUrl: null, signedDate: null });
+    // After the VP signs, route back to the coordinator for a final confirmation.
+    steps.push({ role: 'coordinator_final', label: 'Coordinator (final confirmation)',
+      name: po.coordinatorName, email: po.coordinatorEmail,
+      token: token(), signed: false, signatureDataUrl: null, signedDate: null });
   }
   return steps;
 }
- 
+
 /* ---------------------------------------------------------------------------
    5) PDF GENERATION  --  redraws the whole form each time, stamping
       whatever signatures exist so far. Mirrors the Excel layout.
@@ -318,26 +321,26 @@ async function buildPdf(po) {
   const page = doc.addPage([612, 792]); // US Letter
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
- 
+
   const M = 36;                 // left margin
   const R = 612 - M;            // right edge
   let y = 792 - 40;             // cursor from top
   const black = rgb(0, 0, 0);
   const gray = rgb(0.45, 0.45, 0.45);
- 
+
   const text = (s, x, yy, size = 9, f = font, color = black) =>
     page.drawText(String(s == null ? '' : s), { x, y: yy, size, font: f, color });
   const line = (x1, yy, x2, w = 0.7, color = rgb(0.3, 0.3, 0.3)) =>
     page.drawLine({ start: { x: x1, y: yy }, end: { x: x2, y: yy }, thickness: w, color });
   const box = (x, yy, w, h, bw = 0.7) =>
     page.drawRectangle({ x, y: yy, width: w, height: h, borderColor: rgb(0.3, 0.3, 0.3), borderWidth: bw });
- 
+
   // Title
   text('NAQC Parts/Purchases Request', M, y, 15, bold);
   y -= 8;
   line(M, y, R, 1.2, black);
   y -= 18;
- 
+
   // CHOOSE ONE row (checkboxes)
   text('CHOOSE ONE:', M, y, 9, bold);
   const cats = ['Parts (New)', 'Parts (Replace)', 'Fixed Asset', 'General', 'Shop Supplies'];
@@ -351,7 +354,7 @@ async function buildPdf(po) {
   y -= 16;
   text('Purchasing Assigned Order Number (HMA ONLY): ' + (po.hmaOrderNumber || ''), M, y, 8, font, gray);
   y -= 18;
- 
+
   // Two-column info block
   const colR = 320;
   const field = (label, value, x, yy, vWidth) => {
@@ -366,7 +369,7 @@ async function buildPdf(po) {
   field('Order From (Vendor / Contact Info):', po.vendor, M, y, 270);
   field('Parts Needed Date:', po.partsNeededDate, colR, y, 250);
   y -= 22;
- 
+
   // Vehicle block
   text('For Vehicle Repair Only:', M, y, 8, bold);
   y -= 14;
@@ -380,7 +383,7 @@ async function buildPdf(po) {
   y -= 16;
   field('FULL VIN:', po.vin, M, y, 270);
   y -= 22;
- 
+
   // Reason
   text('REASON FOR PURCHASE (details):', M, y, 8, bold);
   y -= 13;
@@ -396,7 +399,7 @@ async function buildPdf(po) {
   };
   for (const ln of wrap(reason, R - M)) { text(ln, M, y, 9); y -= 12; }
   y -= 6;
- 
+
   // Line items table
   const cols = [M, M + 22, M + 120, M + 360, M + 410, M + 480, R];
   const headers = ['#', 'Part Number', 'Part Description', 'QTY', 'Unit Price', 'Price'];
@@ -425,7 +428,7 @@ async function buildPdf(po) {
     page.drawLine({ start: { x: cols[i], y: tableTop + 4 }, end: { x: cols[i], y: y + 4 }, thickness: 0.5, color: rgb(0.3, 0.3, 0.3) });
   }
   y -= 6;
- 
+
   // Totals (right aligned)
   const tlx = M + 360;
   const totalsRow = (label, val) => {
@@ -438,15 +441,16 @@ async function buildPdf(po) {
   totalsRow('Tax', po.tax);
   totalsRow('Total', po.total);
   y -= 4;
- 
+
   text('Must include (attach): Quote, Incident Reports, Incident Photos for parts replacement.', M, y, 7, font, gray);
   y -= 10;
   text('Include ONE page Fixed Asset Report for Fixed Asset purchases only.', M, y, 7, font, gray);
   y -= 22;
- 
+
   // Signature block
   const sigLabel = { requestor: 'Requestor Signature', manager: 'Manager Signature',
-                     coordinator: 'Coordinator Confirmation', vp: 'Vice President Confirmation' };
+                     coordinator: 'Coordinator Confirmation', vp: 'Vice President Confirmation',
+                     coordinator_final: 'Coordinator Final Confirmation' };
   async function drawSignature(step) {
     const labelTxt = sigLabel[step.role] + ':';
     text(labelTxt, M, y, 9, bold);
@@ -469,19 +473,19 @@ async function buildPdf(po) {
     y -= 34;
   }
   for (const step of po.flow) { await drawSignature(step); }
- 
+
   if (po.flow.some(s => s.role === 'vp')) {
     y -= 2;
     text('Internal Office Only (Fixed Asset / $1,000 and over) - PLEASE DO NOT FILL OUT', M, y, 7, font, gray);
   }
- 
+
   // footer status
   page.drawText('Status: ' + po.status.replace(/_/g, ' '), { x: M, y: 28, size: 7, font, color: gray });
   page.drawText('PO ' + po.id, { x: R - font.widthOfTextAtSize('PO ' + po.id, 7), y: 28, size: 7, font, color: gray });
- 
+
   return await doc.save();
 }
- 
+
 /* ---------------------------------------------------------------------------
    6) EMAIL via Resend (HTTPS REST - no SMTP, no Microsoft)
    --------------------------------------------------------------------------- */
@@ -507,9 +511,9 @@ async function sendEmail({ to, subject, html, pdfBytes, pdfName }) {
   }
   return await res.json();
 }
- 
+
 function signLink(tok) { return CONFIG.BASE_URL.replace(/\/$/, '') + '/sign/' + tok; }
- 
+
 /* ---------------------------------------------------------------------------
    7) WORKFLOW: email the next pending signer, or finalize
    --------------------------------------------------------------------------- */
@@ -551,22 +555,22 @@ async function advance(po) {
     }
   }
 }
- 
+
 /* ---------------------------------------------------------------------------
    8) WEB SERVER
    --------------------------------------------------------------------------- */
 const app = express();
 app.use(express.json({ limit: '8mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
- 
+
 // Serve the embedded form at the root URL (robust even if /public is absent)
 app.get('/', (req, res) => res.type('html').send(FORM_HTML));
- 
+
 // config for the form (coordinator dropdown)
 app.get('/api/config', (req, res) => {
   res.json({ coordinators: Object.keys(CONFIG.COORDINATORS), vpThreshold: CONFIG.VP_THRESHOLD });
 });
- 
+
 // create a new PO (requester has already signed in the browser)
 app.post('/api/po', async (req, res) => {
   try {
@@ -575,7 +579,7 @@ app.post('/api/po', async (req, res) => {
     const { subtotal, tax, total } = computeTotals(items, b.taxRate);
     const id = token().slice(0, 8);
     const coordinatorEmail = CONFIG.COORDINATORS[b.coordinatorName] || b.coordinatorEmail;
- 
+
     const po = {
       id,
       category: b.category,
@@ -596,17 +600,17 @@ app.post('/api/po', async (req, res) => {
       status: 'created',
       createdAt: new Date().toISOString()
     };
- 
+
     // validation for conditional VP
     const needsVP = po.category === 'Fixed Asset' || po.total >= CONFIG.VP_THRESHOLD;
     if (!po.requesterName || !po.requestorSignature) return res.status(400).json({ error: 'Requester name and signature are required.' });
     if (!po.managerEmail) return res.status(400).json({ error: 'Manager email is required.' });
     if (!coordinatorEmail) return res.status(400).json({ error: 'Coordinator email is required.' });
     if (needsVP && !po.vpEmail) return res.status(400).json({ error: 'VP email is required for Fixed Asset or totals of $' + CONFIG.VP_THRESHOLD + '+.' });
- 
+
     po.flow = buildFlow(po);
     await advance(po); // emails the manager (first pending step)
- 
+
     const db = loadDB();
     db.orders[id] = po;
     saveDB(db);
@@ -616,7 +620,7 @@ app.post('/api/po', async (req, res) => {
     res.status(500).json({ error: e.message });
   }
 });
- 
+
 // helper to find a PO + step by signing token
 function findByToken(tok) {
   const db = loadDB();
@@ -627,7 +631,7 @@ function findByToken(tok) {
   }
   return null;
 }
- 
+
 // signing page
 app.get('/sign/:tok', (req, res) => {
   const found = findByToken(req.params.tok);
@@ -641,7 +645,7 @@ app.get('/sign/:tok', (req, res) => {
   }
   res.send(signPage(po, step));
 });
- 
+
 // serve current PDF (for the preview iframe)
 app.get('/pdf/:tok', async (req, res) => {
   const found = findByToken(req.params.tok);
@@ -650,7 +654,7 @@ app.get('/pdf/:tok', async (req, res) => {
   res.setHeader('Content-Type', 'application/pdf');
   res.send(Buffer.from(bytes));
 });
- 
+
 // submit a signature
 app.post('/api/sign/:tok', async (req, res) => {
   try {
@@ -661,12 +665,12 @@ app.post('/api/sign/:tok', async (req, res) => {
     const current = po.flow.find(s => !s.signed);
     if (current.token !== step.token) return res.status(400).json({ error: 'It is not your turn to sign yet.' });
     if (!req.body.signatureDataUrl) return res.status(400).json({ error: 'Signature is required.' });
- 
+
     step.signed = true;
     step.signatureDataUrl = req.body.signatureDataUrl;
     step.signedDate = new Date().toLocaleDateString('en-US');
     if (req.body.name) step.name = req.body.name;
- 
+
     await advance(po);          // email next signer OR finalize
     db.orders[po.id] = po;
     saveDB(db);
@@ -676,7 +680,7 @@ app.post('/api/sign/:tok', async (req, res) => {
     res.status(500).json({ error: e.message });
   }
 });
- 
+
 /* -------- small HTML helpers for server-rendered pages -------- */
 function page(title, inner) {
   return `<!doctype html><html><head><meta charset="utf-8">
@@ -685,7 +689,7 @@ function page(title, inner) {
   <style>body{font-family:Arial,sans-serif;max-width:640px;margin:40px auto;padding:0 16px;color:#222}
   h1{font-size:20px}</style></head><body><h1>${title}</h1>${inner}</body></html>`;
 }
- 
+
 function signPage(po, step) {
   return `<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -742,7 +746,7 @@ function signPage(po, step) {
   };
 </script></body></html>`;
 }
- 
+
 app.listen(CONFIG.PORT, () => {
   console.log('NAQC PO workflow running on ' + CONFIG.BASE_URL + ' (port ' + CONFIG.PORT + ')');
   if (CONFIG.RESEND_API_KEY.includes('PASTE_YOUR')) {
