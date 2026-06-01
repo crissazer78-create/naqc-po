@@ -67,6 +67,7 @@ const FORM_HTML = `<!doctype html>
     <div class="grid2">
       <div><label>Requester Full Name *</label><input id="requesterName"></div>
       <div><label>Requester Email *</label><input id="requesterEmail" type="email"></div>
+      <div style="grid-column:1 / -1"><label>Additional CC Emails for Final PDF</label><input id="additionalEmails" type="text" placeholder="optional: email1@hatci.com, email2@hatci.com"><div class="hint">These people only receive the final completed PDF. They do not receive private signing links.</div></div>
       <div><label>Request Date</label><input id="requestDate" type="date"></div>
       <div><label>Parts Needed Date</label><input id="partsNeededDate" type="date"></div>
     </div>
@@ -234,6 +235,7 @@ $('submit').onclick=async()=>{
   const payload={
     category,hmaOrderNumber:$('hmaOrderNumber').value,
     requesterName:$('requesterName').value,requesterEmail:$('requesterEmail').value,
+    additionalEmails:$('additionalEmails').value,
     requestDate:fmt($('requestDate').value),partsNeededDate:fmt($('partsNeededDate').value),
     vendor:$('vendor').value,vehicleYear:$('vehicleYear').value,vehicleModel:$('vehicleModel').value,
     vin:$('vin').value,orderNumber:$('orderNumber').value,willCall:$('willCall').checked,
@@ -594,6 +596,7 @@ async function advance(po) {
     const pdfBytes = await buildPdf(po);
     const recipients = [...new Set([
       ...po.flow.map(s => s.email).filter(Boolean),
+      ...emailList(po.additionalEmails),
       ...emailList(CONFIG.FINAL_COPY_EMAILS)
     ])];
     const html = `
@@ -638,6 +641,7 @@ app.post('/api/po', async (req, res) => {
       hmaOrderNumber: b.hmaOrderNumber,
       requesterName: b.requesterName,
       requesterEmail: b.requesterEmail,
+      additionalEmails: emailList(b.additionalEmails),
       requestDate: b.requestDate,
       vendor: b.vendor,
       partsNeededDate: b.partsNeededDate,
