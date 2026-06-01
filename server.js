@@ -268,6 +268,11 @@ const CONFIG = {
   //   onboarding@resend.dev   (works immediately, fine for testing)
   FROM_EMAIL: process.env.FROM_EMAIL || 'NAQC Purchasing <onboarding@resend.dev>',
 
+  // Optional: comma-separated emails to receive copies.
+  // Do NOT copy approval/signing-link emails, because each signing link is private.
+  SUBMISSION_COPY_EMAILS: process.env.SUBMISSION_COPY_EMAILS || '',
+  FINAL_COPY_EMAILS: process.env.FINAL_COPY_EMAILS || '',
+
   // The public URL where this app runs. Used to build the signing links in emails.
   // Local test: http://localhost:3000   |   Deployed: https://your-app.onrender.com
   BASE_URL: process.env.BASE_URL || 'http://localhost:3000',
@@ -517,12 +522,30 @@ async function buildPdf(po) {
 /* ---------------------------------------------------------------------------
    6) EMAIL via Resend (HTTPS REST - no SMTP, no Microsoft)
    --------------------------------------------------------------------------- */
-async function sendEmail({ to, subject, html, pdfBytes, pdfName }) {
+function emailList(value) {
+  if (!value) return [];
+  const arr = Array.isArray(value) ? value : String(value).split(/[;,]/);
+  return [...new Set(arr.map(v => String(v).trim()).filter(Boolean))];
+}
+
+async function sendEmail({ to, cc, bcc, subject, html, pdfBytes, pdfName }) {
+  const toList = emailList(to);
+  const ccList = emailList(cc);
+  const bccList = emailList(bcc);
+  if (!toList.length) throw new Error('No recipient email address was provided.');
+
   if (!CONFIG.RESEND_API_KEY || CONFIG.RESEND_API_KEY.includes('PASTE_YOUR')) {
-    console.warn('[email skipped] No RESEND_API_KEY set. Would have emailed:', to, '-', subject);
+    console.warn('[email skipped] No RESEND_API_KEY set. Would have emailed:', toList, '-', subject);
+    if (ccList.length) console.warn('  cc:', ccList);
+    if (bccList.length) console.warn('  bcc:', bccList);
     return { skipped: true };
   }
-  const body = { from: CONFIG.FROM_EMAIL, to: [to], subject, html };
+
+  // Resend accepts multiple recipients as an array. Keep approval emails to one
+  // signer, and use bcc only for non-private copies like submitted/completed PDFs.
+  const body = { from: CONFIG.FROM_EMAIL, to: toList, subject, html };
+  if (ccList.length) body.cc = ccList;
+  if (bccList.length) body.bcc = bccList;
   if (pdfBytes) {
     body.attachments = [{ filename: pdfName || 'purchase-order.pdf',
                           content: Buffer.from(pdfBytes).toString('base64') }];
@@ -569,7 +592,10 @@ async function advance(po) {
     // All signed -> finalize, email everyone the completed PDF
     po.status = 'completed';
     const pdfBytes = await buildPdf(po);
-    const recipients = [...new Set(po.flow.map(s => s.email).filter(Boolean))];
+    const recipients = [...new Set([
+      ...po.flow.map(s => s.email).filter(Boolean),
+      ...emailList(CONFIG.FINAL_COPY_EMAILS)
+    ])];
     const html = `
       <div style="font-family:Arial,sans-serif;font-size:14px;color:#222">
         <p>This purchase order is fully signed and complete.</p>
@@ -577,10 +603,8 @@ async function advance(po) {
            <b>Total:</b> ${money(po.total)}</p>
         <p>The signed PDF is attached.</p>
       </div>`;
-    for (const to of recipients) {
-      await sendEmail({ to, subject: `Completed PO: ${po.vendor || po.requesterName}`,
-                        html, pdfBytes, pdfName: `PO-${po.id}-SIGNED.pdf` });
-    }
+    await sendEmail({ to: recipients, subject: `Completed PO: ${po.vendor || po.requesterName}`,
+                      html, pdfBytes, pdfName: `PO-${po.id}-SIGNED.pdf` });
   }
 }
 
@@ -650,6 +674,7 @@ app.post('/api/po', async (req, res) => {
           <p><b>Vendor:</b> ${po.vendor || '-'} &nbsp; <b>Total:</b> ${money(po.total)}</p>
           <p>You'll receive the fully-signed PDF by email once everyone has signed. A copy as submitted is attached.</p>
         </div>`,
+        bcc: CONFIG.SUBMISSION_COPY_EMAILS,
         pdfBytes, pdfName: `PO-${id}.pdf`
       });
     } catch (e) { console.error('requester confirmation failed', e.message); }
