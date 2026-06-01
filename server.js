@@ -85,6 +85,10 @@ const FORM_HTML = `<!doctype html>
     <div class="check" style="margin-top:10px"><input type="checkbox" id="willCall"><label style="margin:0">Will Call</label></div>
     <label>Reason for Purchase (details)</label>
     <textarea id="reason" placeholder="For vehicle parts: include detailed repair description, photos, and VIN(s)."></textarea>
+    <label>Photos (optional, up to 10)</label>
+    <input type="file" id="photos" accept="image/*" multiple>
+    <div id="photoPreview" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div>
+    <div class="hint" id="photoHint"></div>
   </div>
 
   <div class="card">
@@ -148,6 +152,32 @@ fetch('/api/config').then(r=>r.json()).then(cfg=>{
   VP_THRESHOLD=cfg.vpThreshold||1000;
 });
 
+// photo upload (resize in-browser, store as compressed JPEG data URLs)
+let photoData=[];
+function resizeToDataURL(file){return new Promise((resolve,reject)=>{
+  const img=new Image();const url=URL.createObjectURL(file);
+  img.onload=()=>{URL.revokeObjectURL(url);
+    const max=1100;let w=img.width,h=img.height;
+    if(w>max||h>max){if(w>=h){h=Math.round(h*max/w);w=max;}else{w=Math.round(w*max/h);h=max;}}
+    const c=document.createElement('canvas');c.width=w;c.height=h;
+    c.getContext('2d').drawImage(img,0,0,w,h);
+    resolve(c.toDataURL('image/jpeg',0.72));};
+  img.onerror=reject;img.src=url;});}
+function renderPhotos(){const pv=$('photoPreview');pv.innerHTML='';
+  photoData.forEach((d,i)=>{const wrap=document.createElement('div');wrap.style.position='relative';
+    const im=document.createElement('img');im.src=d;im.style.height='56px';im.style.borderRadius='6px';im.style.border='1px solid #ccc';
+    const x=document.createElement('button');x.textContent='\u00d7';x.title='Remove';
+    x.style.cssText='position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;border:0;background:#ef4444;color:#fff;cursor:pointer;line-height:1;padding:0';
+    x.onclick=()=>{photoData.splice(i,1);renderPhotos();};
+    wrap.appendChild(im);wrap.appendChild(x);pv.appendChild(wrap);});
+  $('photoHint').textContent=photoData.length?photoData.length+' of 10 photos attached':'';}
+$('photos').addEventListener('change',async e=>{
+  const files=[...e.target.files];
+  for(const f of files){ if(photoData.length>=10){$('photoHint').textContent='Maximum 10 photos.';break;}
+    if(!f.type.startsWith('image/'))continue;
+    try{photoData.push(await resizeToDataURL(f));}catch(_){}}
+  e.target.value='';renderPhotos();});
+
 // items table
 const itemsBody=$('items');
 for(let i=0;i<10;i++){
@@ -207,7 +237,7 @@ $('submit').onclick=async()=>{
     requestDate:fmt($('requestDate').value),partsNeededDate:fmt($('partsNeededDate').value),
     vendor:$('vendor').value,vehicleYear:$('vehicleYear').value,vehicleModel:$('vehicleModel').value,
     vin:$('vin').value,orderNumber:$('orderNumber').value,willCall:$('willCall').checked,
-    reason:$('reason').value,items:readItems(),taxRate:parseFloat($('taxRate').value)||0,
+    reason:$('reason').value,photos:photoData,items:readItems(),taxRate:parseFloat($('taxRate').value)||0,
     requestorSignature:pad.toDataURL('image/png'),
     managerName:$('managerName').value,managerEmail:$('managerEmail').value,
     coordinatorName:$('coordinatorName').value,coordinatorEmail:$('coordinatorEmail').value,
@@ -328,6 +358,8 @@ async function buildPdf(po) {
 
   const black = rgb(0,0,0), gray = rgb(0.84,0.84,0.84), green = rgb(0.56,0.80,0.45), red = rgb(0.85,0,0);
   const M = 20, R = 592, MID = 306;
+  const photos = (po.photos || []).filter(p => typeof p === 'string' && p.startsWith('data:image')).slice(0,10);
+  const embedAny = async (durl) => { const b = Buffer.from(durl.split(',')[1],'base64'); return durl.includes('image/png') ? await doc.embedPng(b) : await doc.embedJpg(b); };
 
   const T = (s,x,y,sz,f,c)=>page.drawText(String(s==null?'':s),{x,y,size:sz,font:f||font,color:c||black});
   const line=(x1,y,x2,w)=>page.drawLine({start:{x:x1,y},end:{x:x2,y},thickness:w||0.8,color:black});
@@ -386,6 +418,17 @@ async function buildPdf(po) {
   T('REASON FOR PURCHASE (DETAILS) (For Vehicle parts purchases include detailed repair description, photos, and VIN):', M+2, y-9, 6.2, bi);
   y-=11;
   for(const ln of wrap(po.reason,font,8.5,R-M-6).slice(0,3)){ T(ln,M+2,y-9,8.5,font); y-=11; }
+  if (photos.length) {
+    const ph = 58; let px = M+2; let shown = 0;
+    for (const p of photos) {
+      try { const img = await embedAny(p); const w = (img.width/img.height)*ph;
+        if (px + w > R-4) break;
+        page.drawImage(img,{x:px, y:y-ph-1, width:w, height:ph}); px += w+4; shown++;
+      } catch(e){}
+    }
+    if (photos.length > shown) T('(+' + (photos.length-shown) + ' more on attached photos page)', px+2, y-ph+2, 7, ital, gray);
+    y -= ph + 4;
+  }
   y-=2; line(M,y,R,0.8);
 
   // Items table
@@ -444,6 +487,29 @@ async function buildPdf(po) {
   rect(M, y-4, R-M, top-(y-4));
   page.drawText('Status: '+po.status.replace(/_/g,' '),{x:M,y:14,size:7,font,color:gray});
   page.drawText('PO '+po.id,{x:R-font.widthOfTextAtSize('PO '+po.id,7),y:14,size:7,font,color:gray});
+
+  // Appended photo page(s) — full-size grid, 2 columns x 3 rows per page
+  if (photos.length) {
+    const cols2 = 2, cellW = (R - M - 14) / cols2, cellH = 215, gap = 12;
+    let i = 0;
+    while (i < photos.length) {
+      const pg = doc.addPage([612, 792]);
+      pg.drawText('Reason for Purchase — Attached Photos (PO ' + po.id + ')', { x: M, y: 760, size: 12, font: bold });
+      let col = 0, ry = 740;
+      for (; i < photos.length; i++) {
+        try {
+          const img = await embedAny(photos[i]);
+          const scale = Math.min(cellW / img.width, cellH / img.height);
+          const w = img.width * scale, h = img.height * scale;
+          const cx = M + col * (cellW + 14) + (cellW - w) / 2;
+          pg.drawImage(img, { x: cx, y: ry - h, width: w, height: h });
+          pg.drawText('Photo ' + (i + 1), { x: M + col * (cellW + 14), y: ry + 3, size: 8, font, color: gray });
+        } catch (e) {}
+        col++;
+        if (col >= cols2) { col = 0; ry -= cellH + gap; if (ry - cellH < 40) { i++; break; } }
+      }
+    }
+  }
 
   return await doc.save();
 }
@@ -522,7 +588,7 @@ async function advance(po) {
    8) WEB SERVER
    --------------------------------------------------------------------------- */
 const app = express();
-app.use(express.json({ limit: '8mb' }));
+app.use(express.json({ limit: '25mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Serve the embedded form at the root URL (robust even if /public is absent)
@@ -554,6 +620,7 @@ app.post('/api/po', async (req, res) => {
       vehicleYear: b.vehicleYear, vehicleModel: b.vehicleModel, vin: b.vin,
       orderNumber: b.orderNumber, willCall: !!b.willCall,
       reason: b.reason,
+      photos: Array.isArray(b.photos) ? b.photos.slice(0,10) : [],
       items, subtotal, tax, total, taxRate: b.taxRate,
       requestorSignature: b.requestorSignature,
       managerName: b.managerName, managerEmail: b.managerEmail,
