@@ -109,8 +109,8 @@ const FORM_HTML = `<!doctype html>
     <div class="grid2">
       <div><label>Manager Name</label><input id="managerName"></div>
       <div><label>Manager Email *</label><input id="managerEmail" type="email"></div>
-      <div><label>Coordinator *</label><select id="coordinatorName"></select></div>
-      <div></div>
+      <div><label>Coordinator Name *</label><input id="coordinatorName"></div>
+      <div><label>Coordinator Email *</label><input id="coordinatorEmail" type="email"></div>
     </div>
     <div class="vp" id="vpBlock">
       <div class="hint" style="color:#b45309;font-weight:bold">This order requires Vice President confirmation (Fixed Asset or total $1,000+).</div>
@@ -143,11 +143,9 @@ CATS.forEach(c=>{const d=document.createElement('div');d.className='chip'+(c===c
   d.onclick=()=>{category=c;[...catWrap.children].forEach(x=>x.classList.toggle('sel',x.textContent===c));checkVP();};
   catWrap.appendChild(d);});
 
-// coordinator dropdown
+// load VP threshold from server config
 fetch('/api/config').then(r=>r.json()).then(cfg=>{
   VP_THRESHOLD=cfg.vpThreshold||1000;
-  const sel=$('coordinatorName');
-  (cfg.coordinators||[]).forEach(n=>{const o=document.createElement('option');o.value=n;o.textContent=n;sel.appendChild(o);});
 });
 
 // items table
@@ -199,6 +197,8 @@ $('submit').onclick=async()=>{
   if(!$('requesterName').value){msg.textContent='Requester name is required.';return;}
   if(!$('requesterEmail').value){msg.textContent='Requester email is required.';return;}
   if(!$('managerEmail').value){msg.textContent='Manager email is required.';return;}
+  if(!$('coordinatorName').value){msg.textContent='Coordinator name is required.';return;}
+  if(!$('coordinatorEmail').value){msg.textContent='Coordinator email is required.';return;}
   if(pad.isEmpty()){msg.textContent='Please sign at the bottom.';return;}
   const fmt=d=>d?new Date(d).toLocaleDateString('en-US'):'';
   const payload={
@@ -210,7 +210,7 @@ $('submit').onclick=async()=>{
     reason:$('reason').value,items:readItems(),taxRate:parseFloat($('taxRate').value)||0,
     requestorSignature:pad.toDataURL('image/png'),
     managerName:$('managerName').value,managerEmail:$('managerEmail').value,
-    coordinatorName:$('coordinatorName').value,
+    coordinatorName:$('coordinatorName').value,coordinatorEmail:$('coordinatorEmail').value,
     vpName:$('vpName').value,vpEmail:$('vpEmail').value
   };
   msg.style.color='#374151';msg.textContent='Submitting...';
@@ -578,7 +578,7 @@ app.post('/api/po', async (req, res) => {
     const items = (b.items || []).filter(it => it.partNumber || it.description || it.qty || it.unitPrice);
     const { subtotal, tax, total } = computeTotals(items, b.taxRate);
     const id = token().slice(0, 8);
-    const coordinatorEmail = CONFIG.COORDINATORS[b.coordinatorName] || b.coordinatorEmail;
+    const coordinatorEmail = b.coordinatorEmail || CONFIG.COORDINATORS[b.coordinatorName];
 
     const po = {
       id,
