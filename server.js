@@ -316,172 +316,134 @@ function buildFlow(po) {
    5) PDF GENERATION  --  redraws the whole form each time, stamping
       whatever signatures exist so far. Mirrors the Excel layout.
    --------------------------------------------------------------------------- */
+const LOGO_JPG_B64 = "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";
+
 async function buildPdf(po) {
   const doc = await PDFDocument.create();
-  const page = doc.addPage([612, 792]); // US Letter
+  const page = doc.addPage([612, 792]);
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
+  const ital = await doc.embedFont(StandardFonts.HelveticaOblique);
+  const bi   = await doc.embedFont(StandardFonts.HelveticaBoldOblique);
 
-  const M = 36;                 // left margin
-  const R = 612 - M;            // right edge
-  let y = 792 - 40;             // cursor from top
-  const black = rgb(0, 0, 0);
-  const gray = rgb(0.45, 0.45, 0.45);
+  const black = rgb(0,0,0), gray = rgb(0.84,0.84,0.84), green = rgb(0.56,0.80,0.45), red = rgb(0.85,0,0);
+  const M = 20, R = 592, MID = 306;
 
-  const text = (s, x, yy, size = 9, f = font, color = black) =>
-    page.drawText(String(s == null ? '' : s), { x, y: yy, size, font: f, color });
-  const line = (x1, yy, x2, w = 0.7, color = rgb(0.3, 0.3, 0.3)) =>
-    page.drawLine({ start: { x: x1, y: yy }, end: { x: x2, y: yy }, thickness: w, color });
-  const box = (x, yy, w, h, bw = 0.7) =>
-    page.drawRectangle({ x, y: yy, width: w, height: h, borderColor: rgb(0.3, 0.3, 0.3), borderWidth: bw });
+  const T = (s,x,y,sz,f,c)=>page.drawText(String(s==null?'':s),{x,y,size:sz,font:f||font,color:c||black});
+  const line=(x1,y,x2,w)=>page.drawLine({start:{x:x1,y},end:{x:x2,y},thickness:w||0.8,color:black});
+  const vline=(x,y1,y2,w)=>page.drawLine({start:{x,y:y1},end:{x,y:y2},thickness:w||0.8,color:black});
+  const rect=(x,y,w,h,fill)=>page.drawRectangle({x,y,width:w,height:h,color:fill,borderColor:black,borderWidth:0.8});
+  const fillRect=(x,y,w,h,fill)=>page.drawRectangle({x,y,width:w,height:h,color:fill});
+  const wrap=(str,f,sz,max)=>{const ws=String(str||'').split(/\s+/);const ls=[];let c='';for(const w of ws){if(f.widthOfTextAtSize((c+' '+w).trim(),sz)>max){if(c)ls.push(c);c=w;}else c=(c+' '+w).trim();}if(c)ls.push(c);return ls.length?ls:[''];};
+
+  let y = 770;
+  const top = y;
 
   // Title
-  text('NAQC Parts/Purchases Request', M, y, 15, bold);
-  y -= 8;
-  line(M, y, R, 1.2, black);
-  y -= 18;
+  const title='NAQC Parts/Purchases Request';
+  T(title,(612-bold.widthOfTextAtSize(title,16))/2,y-19,16,bold);
+  const tw=bold.widthOfTextAtSize(title,16); line((612-tw)/2,y-22,(612+tw)/2,1.1);
+  y-=28; line(M,y,R,1);
 
-  // CHOOSE ONE row (checkboxes)
-  text('CHOOSE ONE:', M, y, 9, bold);
-  const cats = ['Parts (New)', 'Parts (Replace)', 'Fixed Asset', 'General', 'Shop Supplies'];
-  let cx = M + 70;
-  for (const c of cats) {
-    box(cx, y - 1, 8, 8, 0.7);
-    if (po.category === c) { text('X', cx + 1.3, y, 8, bold); }
-    text(c, cx + 12, y, 8);
-    cx += 12 + font.widthOfTextAtSize(c, 8) + 16;
-  }
-  y -= 16;
-  text('Purchasing Assigned Order Number (HMA ONLY): ' + (po.hmaOrderNumber || ''), M, y, 8, font, gray);
-  y -= 18;
+  // CHOOSE ONE / green HMA banner
+  const rowTop=y;
+  fillRect(MID, y-30, R-MID, 30, green);
+  T('Purchasing Assigned Order Number (HMA ONLY):', MID+4, y-11, 8, bi);
+  T(po.hmaOrderNumber||'', MID+4, y-24, 9, font);
+  T('CHOOSE ONE:', M+2, y-11, 8.5, bi);
+  const cats=['Parts (New)','Parts (Replace)','Fixed Asset','General','Shop Supplies'];
+  let cx=M+2, cyy=y-24;
+  for(const c of cats){ const sel=po.category===c; const f=sel?bold:bold; const col=sel?red:black;
+    T(c,cx,cyy,7.5,f,col); cx+=bold.widthOfTextAtSize(c,7.5)+4;
+    if(sel){T('x',cx,cyy,7.5,bold,red); cx+=bold.widthOfTextAtSize('x',7.5)+8;} else {cx+=8;} }
+  y-=30; line(M,y,R,0.8); vline(MID,rowTop,y);
 
-  // Two-column info block
-  const colR = 320;
-  const field = (label, value, x, yy, vWidth) => {
-    text(label, x, yy, 8, bold);
-    const lx = x + bold.widthOfTextAtSize(label, 8) + 4;
-    text(value || '', lx, yy, 9);
-    line(lx, yy - 2, x + (vWidth || 250), 0.5);
+  // helper: two-column labeled row
+  const tworow=(h, ll, lv, rl, rv)=>{
+    const rt=y;
+    T(ll, M+2, y-10, 8, bi);
+    if(lv){ T(lv, M+2, y-21, 9, font); }
+    T(rl, MID+4, y-10, 8, bi);
+    if(rv){ T(rv, MID+90, y-10, 9, font); }
+    y-=h; line(M,y,R,0.8); vline(MID,rt,y);
   };
-  field('Requester Full Name:', po.requesterName, M, y, 270);
-  field('Request Date:', po.requestDate, colR, y, 250);
-  y -= 18;
-  field('Order From (Vendor / Contact Info):', po.vendor, M, y, 270);
-  field('Parts Needed Date:', po.partsNeededDate, colR, y, 250);
-  y -= 22;
+  tworow(24,'Requester  Full Name :', po.requesterName, 'Request Date :', po.requestDate);
+  tworow(24,'Order From (VENDOR, CONTACT INFORMATION):', po.vendor, 'Parts Needed Date :', po.partsNeededDate);
 
-  // Vehicle block
-  text('For Vehicle Repair Only:', M, y, 8, bold);
-  y -= 14;
-  field('YEAR:', po.vehicleYear, M, y, 120);
-  field('Order Number:', po.orderNumber, colR, y, 250);
-  y -= 16;
-  field('MODEL:', po.vehicleModel, M, y, 120);
-  text('Will Call:', colR, y, 8, bold);
-  box(colR + 50, y - 1, 8, 8);
-  if (po.willCall) text('X', colR + 51.3, y, 8, bold);
-  y -= 16;
-  field('FULL VIN:', po.vin, M, y, 270);
-  y -= 22;
+  // For Vehicle Repair Only
+  const vt=y;
+  T('For Vehicle Repair Only:', M+2, y-10, 8, bi);
+  T('Order Number :', MID+4, y-10, 8, bi); T(po.orderNumber||'', MID+90, y-10, 9, font);
+  y-=14;
+  // YEAR / MODEL / FULL VIN with gray value cells
+  const grayCell=(lbl,val)=>{ fillRect(M+90,y-13,MID-(M+90),13,gray); T(lbl,M+2,y-10,8,bi); T(val||'',M+94,y-10,9,font); y-=13; line(M,y,R,0.4); };
+  T('YEAR:',M+2,y-10,8,bi); fillRect(M+90,y-13,MID-(M+90),13,gray); T(po.vehicleYear||'',M+94,y-10,9,font); y-=13;
+  T('MODEL:',M+2,y-10,8,bi); fillRect(M+90,y-13,MID-(M+90),13,gray); T(po.vehicleModel||'',M+94,y-10,9,font); y-=13;
+  T('FULL VIN :',M+2,y-10,8,bi); fillRect(M+90,y-13,MID-(M+90),13,gray); T(po.vin||'',M+94,y-10,9,font); y-=13;
+  line(M,y,R,0.8); vline(MID,vt,y);
 
   // Reason
-  text('REASON FOR PURCHASE (details):', M, y, 8, bold);
-  y -= 13;
-  const reason = String(po.reason || '');
-  const wrap = (str, max) => {
-    const words = str.split(/\s+/); const lines = []; let cur = '';
-    for (const w of words) {
-      if (font.widthOfTextAtSize((cur + ' ' + w).trim(), 9) > max) { lines.push(cur); cur = w; }
-      else cur = (cur + ' ' + w).trim();
-    }
-    if (cur) lines.push(cur);
-    return lines.length ? lines : [''];
-  };
-  for (const ln of wrap(reason, R - M)) { text(ln, M, y, 9); y -= 12; }
-  y -= 6;
+  T('REASON FOR PURCHASE (DETAILS) (For Vehicle parts purchases include detailed repair description, photos, and VIN):', M+2, y-9, 6.2, bi);
+  y-=11;
+  for(const ln of wrap(po.reason,font,8.5,R-M-6).slice(0,3)){ T(ln,M+2,y-9,8.5,font); y-=11; }
+  y-=2; line(M,y,R,0.8);
 
-  // Line items table
-  const cols = [M, M + 22, M + 120, M + 360, M + 410, M + 480, R];
-  const headers = ['#', 'Part Number', 'Part Description', 'QTY', 'Unit Price', 'Price'];
-  const rowH = 16;
-  const tableTop = y;
-  // header
-  page.drawRectangle({ x: M, y: y - rowH + 4, width: R - M, height: rowH, color: rgb(0.92, 0.92, 0.92) });
-  for (let i = 0; i < headers.length; i++) text(headers[i], cols[i] + 3, y - 8, 8, bold);
-  y -= rowH;
-  const items = (po.items || []).slice(0, 10);
-  while (items.length < 10) items.push({});
-  items.forEach((it, idx) => {
-    const lineTotal = (Number(it.qty) || 0) * (Number(it.unitPrice) || 0);
-    text(idx + 1, cols[0] + 3, y - 8, 8);
-    text(it.partNumber || '', cols[1] + 3, y - 8, 8);
-    text(it.description || '', cols[2] + 3, y - 8, 8);
-    text(it.qty != null && it.qty !== '' ? it.qty : '', cols[3] + 3, y - 8, 8);
-    text(it.unitPrice ? money(it.unitPrice) : '', cols[4] + 3, y - 8, 8);
-    text(lineTotal ? money(lineTotal) : '', cols[5] + 3, y - 8, 8);
-    y -= rowH;
-  });
-  // grid
-  box(M, y + 4, R - M, tableTop - y);
-  // vertical lines
-  for (let i = 1; i < cols.length; i++) {
-    page.drawLine({ start: { x: cols[i], y: tableTop + 4 }, end: { x: cols[i], y: y + 4 }, thickness: 0.5, color: rgb(0.3, 0.3, 0.3) });
-  }
-  y -= 6;
+  // Items table
+  const cols=[M, M+26, M+150, M+360, M+418, M+498, R];
+  const heads=['#','Part Number','Part Description','QTY','Unit Price','Price'];
+  const rh=15, tt=y;
+  fillRect(M,y-rh,R-M,rh,gray);
+  for(let i=0;i<heads.length;i++){ const cw=cols[i+1]-cols[i]; const tw2=bold.widthOfTextAtSize(heads[i],8); T(heads[i], cols[i]+(cw-tw2)/2, y-11, 8, bold); }
+  y-=rh;
+  const items=(po.items||[]).slice(0,10); while(items.length<10) items.push({});
+  const money=n=>'$'+(Number(n)||0).toFixed(2);
+  items.forEach((it,idx)=>{ const lt=(Number(it.qty)||0)*(Number(it.unitPrice)||0);
+    const cell=(s,ci,al)=>{ const cw=cols[ci+1]-cols[ci]; const w=font.widthOfTextAtSize(String(s),8); let x=cols[ci]+3; if(al==='c')x=cols[ci]+(cw-w)/2; T(s,x,y-11,8,idx<99?font:font); };
+    cell(idx+1,0,'c'); cell(it.partNumber||'',1); cell(it.description||'',2);
+    cell(it.qty!=null&&it.qty!==''?it.qty:'',3,'c'); cell(it.unitPrice?money(it.unitPrice):'',4,'c'); cell(lt?money(lt):'$0.00',5,'c');
+    y-=rh; });
+  rect(M,y,R-M,tt-y); for(let i=1;i<cols.length-1;i++) vline(cols[i],tt,y,0.6);
+  for(let r=1;r<=10;r++) line(M,tt-rh*r,R,0.4);
+  y-=4;
 
-  // Totals (right aligned)
-  const tlx = M + 360;
-  const totalsRow = (label, val) => {
-    text(label, tlx, y, 9, bold);
-    const v = money(val);
-    text(v, R - font.widthOfTextAtSize(v, 9), y, 9);
-    y -= 14;
-  };
-  totalsRow('Subtotal', po.subtotal);
-  totalsRow('Tax', po.tax);
-  totalsRow('Total', po.total);
-  y -= 4;
-
-  text('Must include (attach): Quote, Incident Reports, Incident Photos for parts replacement.', M, y, 7, font, gray);
-  y -= 10;
-  text('Include ONE page Fixed Asset Report for Fixed Asset purchases only.', M, y, 7, font, gray);
-  y -= 22;
+  // Totals box (right) + Must Include (left)
+  const tlx=M+418, boxY=y;
+  const trow=(lbl,val,bw)=>{ rect(tlx, y-15, R-tlx, 15, undefined); T(lbl, cols[4]+3, y-11, 8.5, bold); const v=money(val); T(v, R-font.widthOfTextAtSize(v,8.5)-3, y-11, 8.5, bold); y-=15; };
+  // labels sit in the unit-price column, values in price column box
+  const totRow=(lbl,val,thick)=>{ rect(cols[5], y-15, R-cols[5], 15); T(lbl, cols[4]+3, y-11, 8.5, bold); const v=money(val); T(v, R-font.widthOfTextAtSize(v,8.5)-3, y-11, 8.5, bold); if(thick){rect(cols[5],y-15,R-cols[5],15);} y-=15; };
+  totRow('Subtotal', po.subtotal);
+  totRow('Tax', po.tax);
+  totRow('Total', po.total, true);
+  // Must include text (left side)
+  let my=boxY-2;
+  T('Must Include (ATTACH):', M+2, my-9, 9, bold); line(M+2, my-11, M+2+bold.widthOfTextAtSize('Must Include (ATTACH):',9), 0.6); my-=14;
+  T('Quote, Incident Reports, Incident Photos for PARTS REPLACEMENT', M+2, my-9, 8, bold); my-=11;
+  T('Include ONE page Fixed Asset Report for Fixed Asset Purchase Request Only', M+2, my-9, 8, bold);
+  y=Math.min(y, my-16);
 
   // Signature block
-  const sigLabel = { requestor: 'Requestor Signature', manager: 'Manager Signature',
-                     coordinator: 'Coordinator Confirmation', vp: 'Vice President Confirmation',
-                     coordinator_final: 'Coordinator Final Confirmation' };
-  async function drawSignature(step) {
-    const labelTxt = sigLabel[step.role] + ':';
-    text(labelTxt, M, y, 9, bold);
-    const sigX = M + 150, sigW = 200;
-    // signature image or blank line
-    if (step.signed && step.signatureDataUrl) {
-      try {
-        const b64 = step.signatureDataUrl.split(',')[1];
-        const png = await doc.embedPng(Buffer.from(b64, 'base64'));
-        const h = 28, w = Math.min(sigW, (png.width / png.height) * h);
-        page.drawImage(png, { x: sigX, y: y - 6, width: w, height: h });
-      } catch (e) { /* ignore bad image */ }
+  const sigLabel={requestor:'Requestor Signature', manager:'Manager Signature', coordinator:'Coordinator Confirmation', vp:'Vice President Confirmation', coordinator_final:'Coordinator Final Confirmation'};
+  async function drawSig(step){
+    if(step.role==='vp'){ T('Internal Office Only  (Fixed asset/1,000 over) :', M+2, y-9, 7.5, bold); y-=9; T('PLEASE DO NOT FILL OUT', M+2, y-9, 7.5, bold); y-=14; }
+    const lbl=sigLabel[step.role]||step.label; T(lbl, M+60, y, 9, bold); T(':', M+200, y, 9, bold);
+    const sx=M+215, sw=170;
+    if(step.signed && step.signatureDataUrl && step.signatureDataUrl.startsWith('data:image')){
+      try{ const png=await doc.embedPng(Buffer.from(step.signatureDataUrl.split(',')[1],'base64')); const hh=24,ww=Math.min(sw,(png.width/png.height)*hh); page.drawImage(png,{x:sx,y:y-4,width:ww,height:hh}); }catch(e){}
     }
-    line(sigX, y - 2, sigX + sigW, 0.7);
-    if (step.name) text(step.name, sigX, y - 14, 7, font, gray);
-    // date
-    text('Date:', sigX + sigW + 12, y, 9, bold);
-    text(step.signedDate || '', sigX + sigW + 40, y, 9);
-    line(sigX + sigW + 40, y - 2, R, 0.7);
-    y -= 34;
+    line(sx,y-2,sx+sw,0.8); if(step.name) T(step.name,sx,y-12,6.5,font,gray);
+    T('Date :', sx+sw+14, y, 9, bold); T(step.signedDate||'', sx+sw+48, y, 9, font); line(sx+sw+48, y-2, R-4, 0.8);
+    y-=26;
   }
-  for (const step of po.flow) { await drawSignature(step); }
+  y-=6;
+  for(const step of po.flow){ await drawSig(step); }
 
-  if (po.flow.some(s => s.role === 'vp')) {
-    y -= 2;
-    text('Internal Office Only (Fixed Asset / $1,000 and over) - PLEASE DO NOT FILL OUT', M, y, 7, font, gray);
-  }
+  // Logo bottom-right
+  try{ const lg=await doc.embedJpg(Buffer.from(LOGO_JPG_B64,'base64')); const lw=120, lh=(lg.height/lg.width)*lw; page.drawImage(lg,{x:R-lw, y:24, width:lw, height:lh}); }catch(e){}
 
-  // footer status
-  page.drawText('Status: ' + po.status.replace(/_/g, ' '), { x: M, y: 28, size: 7, font, color: gray });
-  page.drawText('PO ' + po.id, { x: R - font.widthOfTextAtSize('PO ' + po.id, 7), y: 28, size: 7, font, color: gray });
+  // Outer border + status footer
+  rect(M, y-4, R-M, top-(y-4));
+  page.drawText('Status: '+po.status.replace(/_/g,' '),{x:M,y:14,size:7,font,color:gray});
+  page.drawText('PO '+po.id,{x:R-font.widthOfTextAtSize('PO '+po.id,7),y:14,size:7,font,color:gray});
 
   return await doc.save();
 }
@@ -609,6 +571,22 @@ app.post('/api/po', async (req, res) => {
     if (needsVP && !po.vpEmail) return res.status(400).json({ error: 'VP email is required for Fixed Asset or totals of $' + CONFIG.VP_THRESHOLD + '+.' });
 
     po.flow = buildFlow(po);
+
+    // Send the requester an immediate confirmation that it's been submitted
+    try {
+      const pdfBytes = await buildPdf(po);
+      await sendEmail({
+        to: po.requesterEmail,
+        subject: `Submitted: PO for ${po.vendor || po.requesterName}`,
+        html: `<div style="font-family:Arial,sans-serif;font-size:14px;color:#222">
+          <p>Your purchase order has been submitted and sent to the Manager for signature.</p>
+          <p><b>Vendor:</b> ${po.vendor || '-'} &nbsp; <b>Total:</b> ${money(po.total)}</p>
+          <p>You'll receive the fully-signed PDF by email once everyone has signed. A copy as submitted is attached.</p>
+        </div>`,
+        pdfBytes, pdfName: `PO-${id}.pdf`
+      });
+    } catch (e) { console.error('requester confirmation failed', e.message); }
+
     await advance(po); // emails the manager (first pending step)
 
     const db = loadDB();
