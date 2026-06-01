@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NAQC Parts/Purchases Request</title>
+<style>
+  :root{--blue:#1a56db}
+  *{box-sizing:border-box}
+  body{font-family:Arial,Helvetica,sans-serif;background:#f3f4f6;color:#1f2937;margin:0}
+  .wrap{max-width:860px;margin:0 auto;padding:20px 16px 60px}
+  h1{font-size:22px;margin:6px 0 2px}
+  h2{font-size:14px;text-transform:uppercase;letter-spacing:.04em;color:#374151;margin:22px 0 8px;border-bottom:2px solid #d1d5db;padding-bottom:4px}
+  .card{background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:18px;margin-top:14px}
+  label{font-weight:bold;font-size:12px;display:block;margin:10px 0 4px}
+  input,select,textarea{width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:6px;font-size:14px;font-family:inherit}
+  textarea{min-height:60px;resize:vertical}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 16px}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 16px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+  .chip{border:1px solid #cbd5e1;border-radius:20px;padding:6px 14px;cursor:pointer;font-size:13px;user-select:none}
+  .chip.sel{background:var(--blue);color:#fff;border-color:var(--blue)}
+  table{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px}
+  th,td{border:1px solid #e5e7eb;padding:4px}
+  th{background:#f1f5f9;font-size:11px}
+  td input{border:0;padding:6px}
+  .totals{margin-top:10px;margin-left:auto;width:260px}
+  .totals div{display:flex;justify-content:space-between;padding:3px 0}
+  .totals .total{font-weight:bold;border-top:1px solid #cbd5e1;margin-top:4px;padding-top:6px}
+  canvas{border:1px dashed #9ca3af;border-radius:8px;width:100%;height:160px;touch-action:none;background:#fff}
+  button{font-size:15px;padding:11px 18px;border:0;border-radius:8px;cursor:pointer}
+  .primary{background:var(--blue);color:#fff}.ghost{background:#e5e7eb}
+  .row{display:flex;gap:10px;align-items:center;margin-top:12px}
+  .hint{color:#6b7280;font-size:12px;margin-top:4px}
+  .vp{display:none}
+  #msg{margin-top:12px;font-weight:bold}
+  .check{display:flex;align-items:center;gap:8px}.check input{width:auto}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>NAQC Parts/Purchases Request</h1>
+  <div class="hint">Fill out the form, sign at the bottom, and submit. It will be emailed to the Manager, then the Coordinator, in order.</div>
+
+  <div class="card">
+    <h2>Category</h2>
+    <div class="chips" id="cats"></div>
+    <label>Purchasing Assigned Order Number (HMA only)</label>
+    <input id="hmaOrderNumber" placeholder="Leave blank if N/A">
+  </div>
+
+  <div class="card">
+    <h2>Request Info</h2>
+    <div class="grid2">
+      <div><label>Requester Full Name *</label><input id="requesterName"></div>
+      <div><label>Requester Email *</label><input id="requesterEmail" type="email"></div>
+      <div><label>Request Date</label><input id="requestDate" type="date"></div>
+      <div><label>Parts Needed Date</label><input id="partsNeededDate" type="date"></div>
+    </div>
+    <label>Order From (Vendor, Contact Information)</label>
+    <input id="vendor" placeholder="e.g. Home Depot">
+  </div>
+
+  <div class="card">
+    <h2>For Vehicle Repair Only</h2>
+    <div class="grid3">
+      <div><label>Year</label><input id="vehicleYear"></div>
+      <div><label>Model</label><input id="vehicleModel"></div>
+      <div><label>Order Number</label><input id="orderNumber"></div>
+    </div>
+    <label>Full VIN</label><input id="vin">
+    <div class="check" style="margin-top:10px"><input type="checkbox" id="willCall"><label style="margin:0">Will Call</label></div>
+    <label>Reason for Purchase (details)</label>
+    <textarea id="reason" placeholder="For vehicle parts: include detailed repair description, photos, and VIN(s)."></textarea>
+  </div>
+
+  <div class="card">
+    <h2>Items</h2>
+    <table>
+      <thead><tr><th style="width:28px">#</th><th>Part Number</th><th>Part Description</th><th style="width:60px">QTY</th><th style="width:90px">Unit Price</th><th style="width:90px">Price</th></tr></thead>
+      <tbody id="items"></tbody>
+    </table>
+    <div class="row" style="justify-content:space-between">
+      <div><label style="display:inline">Tax rate</label>
+        <input id="taxRate" style="width:90px;display:inline" value="0.0775"> <span class="hint">(e.g. 0.0775 = 7.75%)</span></div>
+    </div>
+    <div class="totals">
+      <div><span>Subtotal</span><span id="subtotal">$0.00</span></div>
+      <div><span>Tax</span><span id="tax">$0.00</span></div>
+      <div class="total"><span>Total</span><span id="total">$0.00</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Approval Routing</h2>
+    <div class="grid2">
+      <div><label>Manager Name</label><input id="managerName"></div>
+      <div><label>Manager Email *</label><input id="managerEmail" type="email"></div>
+      <div><label>Coordinator *</label><select id="coordinatorName"></select></div>
+      <div></div>
+    </div>
+    <div class="vp" id="vpBlock">
+      <div class="hint" style="color:#b45309;font-weight:bold">This order requires Vice President confirmation (Fixed Asset or total $1,000+).</div>
+      <div class="grid2">
+        <div><label>VP Name</label><input id="vpName"></div>
+        <div><label>VP Email *</label><input id="vpEmail" type="email"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Requestor Signature</h2>
+    <canvas id="pad"></canvas>
+    <div class="row"><button class="ghost" id="clear">Clear</button></div>
+  </div>
+
+  <div class="row"><button class="primary" id="submit">Submit &amp; Send for Signatures</button></div>
+  <div id="msg"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
+<script>
+const CATS=['Parts (New)','Parts (Replace)','Fixed Asset','General','Shop Supplies'];
+let category='General', VP_THRESHOLD=1000;
+const $=id=>document.getElementById(id);
+
+// category chips
+const catWrap=$('cats');
+CATS.forEach(c=>{const d=document.createElement('div');d.className='chip'+(c===category?' sel':'');d.textContent=c;
+  d.onclick=()=>{category=c;[...catWrap.children].forEach(x=>x.classList.toggle('sel',x.textContent===c));checkVP();};
+  catWrap.appendChild(d);});
+
+// coordinator dropdown
+fetch('/api/config').then(r=>r.json()).then(cfg=>{
+  VP_THRESHOLD=cfg.vpThreshold||1000;
+  const sel=$('coordinatorName');
+  (cfg.coordinators||[]).forEach(n=>{const o=document.createElement('option');o.value=n;o.textContent=n;sel.appendChild(o);});
+});
+
+// items table
+const itemsBody=$('items');
+for(let i=0;i<10;i++){
+  const tr=document.createElement('tr');
+  tr.innerHTML='<td>'+(i+1)+'</td>'+
+    '<td><input data-f="partNumber"></td>'+
+    '<td><input data-f="description"></td>'+
+    '<td><input data-f="qty" inputmode="decimal"></td>'+
+    '<td><input data-f="unitPrice" inputmode="decimal"></td>'+
+    '<td class="lineTotal">$0.00</td>';
+  itemsBody.appendChild(tr);
+}
+function readItems(){return [...itemsBody.children].map(tr=>{
+  const o={};tr.querySelectorAll('input').forEach(inp=>o[inp.dataset.f]=inp.value);return o;});}
+function recompute(){
+  let sub=0;
+  [...itemsBody.children].forEach(tr=>{
+    const q=parseFloat(tr.querySelector('[data-f=qty]').value)||0;
+    const p=parseFloat(tr.querySelector('[data-f=unitPrice]').value)||0;
+    const lt=q*p;sub+=lt;tr.querySelector('.lineTotal').textContent='$'+lt.toFixed(2);
+  });
+  const rate=parseFloat($('taxRate').value)||0;const tax=sub*rate;
+  $('subtotal').textContent='$'+sub.toFixed(2);
+  $('tax').textContent='$'+tax.toFixed(2);
+  $('total').textContent='$'+(sub+tax).toFixed(2);
+  checkVP(sub+tax);
+}
+function checkVP(total){
+  if(total===undefined){const t=$('total').textContent.replace('$','');total=parseFloat(t)||0;}
+  const need=category==='Fixed Asset'||total>=VP_THRESHOLD;
+  $('vpBlock').style.display=need?'block':'none';
+}
+itemsBody.addEventListener('input',recompute);
+$('taxRate').addEventListener('input',recompute);
+$('requestDate').value=new Date().toISOString().slice(0,10);
+recompute();
+
+// signature pad
+const canvas=$('pad');
+function fit(){const r=window.devicePixelRatio||1;canvas.width=canvas.offsetWidth*r;canvas.height=canvas.offsetHeight*r;canvas.getContext('2d').scale(r,r);}
+fit();const pad=new SignaturePad(canvas,{penColor:'#0b2161'});
+window.addEventListener('resize',()=>{const d=pad.toData();fit();pad.fromData(d);});
+$('clear').onclick=()=>pad.clear();
+
+$('submit').onclick=async()=>{
+  const msg=$('msg');msg.style.color='#b91c1c';
+  if(!$('requesterName').value){msg.textContent='Requester name is required.';return;}
+  if(!$('requesterEmail').value){msg.textContent='Requester email is required.';return;}
+  if(!$('managerEmail').value){msg.textContent='Manager email is required.';return;}
+  if(pad.isEmpty()){msg.textContent='Please sign at the bottom.';return;}
+  const fmt=d=>d?new Date(d).toLocaleDateString('en-US'):'';
+  const payload={
+    category,hmaOrderNumber:$('hmaOrderNumber').value,
+    requesterName:$('requesterName').value,requesterEmail:$('requesterEmail').value,
+    requestDate:fmt($('requestDate').value),partsNeededDate:fmt($('partsNeededDate').value),
+    vendor:$('vendor').value,vehicleYear:$('vehicleYear').value,vehicleModel:$('vehicleModel').value,
+    vin:$('vin').value,orderNumber:$('orderNumber').value,willCall:$('willCall').checked,
+    reason:$('reason').value,items:readItems(),taxRate:parseFloat($('taxRate').value)||0,
+    requestorSignature:pad.toDataURL('image/png'),
+    managerName:$('managerName').value,managerEmail:$('managerEmail').value,
+    coordinatorName:$('coordinatorName').value,
+    vpName:$('vpName').value,vpEmail:$('vpEmail').value
+  };
+  msg.style.color='#374151';msg.textContent='Submitting...';
+  const r=await fetch('/api/po',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  const j=await r.json();
+  if(j.ok){document.querySelector('.wrap').innerHTML=
+    '<div class="card"><h1>Submitted!</h1><p>Your purchase order (#'+j.id+') has been signed and emailed to the Manager for signature. '+
+    'It will route automatically to the Coordinator'+($('vpBlock').style.display==='block'?', then the Vice President,':'')+' next.</p>'+
+    '<p><a href="/">Submit another</a></p></div>';}
+  else{msg.style.color='#b91c1c';msg.textContent=j.error||'Something went wrong.';}
+};
+</script>
+</body>
+</html>
