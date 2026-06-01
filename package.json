@@ -1,0 +1,16 @@
+{
+  "name": "naqc-po-workflow",
+  "version": "1.0.0",
+  "description": "NAQC Parts/Purchases Request form with sequential e-signature routing (no Microsoft required).",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "pdf-lib": "^1.17.1"
+  }
+}
